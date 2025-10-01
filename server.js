@@ -5,6 +5,7 @@ const dotenv = require('dotenv');
 
 // Import routes
 const authRoutes = require('./routes/auth');
+const recipeRoutes = require('./routes/recipes');
 
 // Load environment variables
 dotenv.config();
@@ -26,6 +27,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/tudungsaj
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/recipes', recipeRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
