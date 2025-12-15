@@ -120,6 +120,16 @@ jobs:
         echo "📡 Railway provides automatic domain"
         echo "✅ Check your Railway dashboard for the live URL"
         echo "🔗 Dashboard: https://railway.app/dashboard"
+
+  # =====================================================
+  # Post-Deployment Tasks
+  # =====================================================
+  post-deploy:
+    name: 📋 Post Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, docker-build]
+    if: always() && (github.ref == 'refs/heads/main')
+
     steps:
     - name: 📊 Deployment Status
       run: |
