@@ -18,9 +18,6 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Logging middleware
-app.use(logger.logRequest);
-
 // Request logging middleware
 app.use((req, res, next) => {
   logger.info('Incoming Request', {
@@ -32,35 +29,18 @@ app.use((req, res, next) => {
   next();
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  logger.logError(err, {
-    method: req.method,
-    url: req.originalUrl,
-    userId: req.user?.id
-  });
-  
-  res.status(err.status || 500).json({
-    success: false,
-    message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message
-  });
-});
-
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/tudungsaji', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/tudungsaji')
 .then(() => {
   logger.info('Database Connected', {
     database: 'MongoDB',
-    uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/tudungsaji'
+    uri: process.env.MONGODB_URI ? 'MongoDB Atlas' : 'Local MongoDB'
   });
 })
 .catch((err) => {
   logger.logError(err, {
     context: 'MongoDB Connection',
-    uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/tudungsaji'
+    uri: process.env.MONGODB_URI ? 'MongoDB Atlas' : 'Local MongoDB'
   });
   process.exit(1);
 });
@@ -69,14 +49,14 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/tudungsaj
 app.use('/api/auth', authRoutes);
 app.use('/api/recipes', recipeRoutes);
 
-// Health check endpoint
+// Health check endpoints
 app.get('/', (req, res) => {
   logger.info('Health Check', {
     endpoint: '/',
     status: 'healthy',
     timestamp: new Date().toISOString()
   });
-  res.json({ 
+  res.json({
     message: 'Tudungsaji API Server is running!',
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -84,13 +64,12 @@ app.get('/', (req, res) => {
   });
 });
 
-// API health endpoint
 app.get('/api/health', (req, res) => {
   logger.info('API Health Check', {
     endpoint: '/api/health',
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
-  
+
   res.json({
     status: 'healthy',
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
@@ -99,14 +78,53 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// 404 handler for undefined routes
+app.use((req, res) => {
+  logger.warn('Route Not Found', {
+    method: req.method,
+    url: req.originalUrl,
+    ip: req.ip
+  });
+  
+  res.status(404).json({
+    success: false,
+    message: 'Route not found'
+  });
+});
+
+// Global error handling middleware (must be last)
+app.use((err, req, res, next) => {
+  logger.logError(err, {
+    method: req.method,
+    url: req.originalUrl,
+    userId: req.user?.id
+  });
+
+  res.status(err.status || 500).json({
+    success: false,
+    message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message
+  });
+});
+
 // Graceful shutdown handling
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully');
+  mongoose.connection.close();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   logger.info('SIGINT received, shutting down gracefully');
+  mongoose.connection.close();
   process.exit(0);
 });
 
