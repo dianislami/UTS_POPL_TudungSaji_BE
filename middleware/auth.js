@@ -18,7 +18,7 @@ const auth = async (req, res, next) => {
 
     // Get user from token
     const user = await User.findById(decoded.userId).select('-password');
-
+    // Check if user exists
     if (!user) {
       return res.status(401).json({
         success: false,
