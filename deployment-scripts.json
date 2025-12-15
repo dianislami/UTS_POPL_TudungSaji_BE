@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "deploy:frontend": "cd ../tudungsaji && vercel --prod",
+    "deploy:backend": "echo 'Backend auto-deploys to Cyclic on git push'",
+    "build:docker": "docker build -t dianislami/klp9_proyek_popl_uas:latest-backend .",
+    "push:docker": "docker push dianislami/klp9_proyek_popl_uas:latest-backend",
+    "deploy:docker": "npm run build:docker && npm run push:docker",
+    "health:check": "curl -s https://tudungsaji-backend.cyclic.app/health || echo 'Health check failed'",
+    "logs:view": "npm run logs:tail",
+    "deploy:all": "git add . && git commit -m 'Deploy update' && git push origin main"
+  }
+}
