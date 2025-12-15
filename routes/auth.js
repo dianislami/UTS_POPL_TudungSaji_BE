@@ -1,8 +1,10 @@
+// Import required dependencies
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const logger = require('../utils/logger');
 
+// Initialize Express router
 const router = express.Router();
 
 // Generate JWT Token
@@ -17,9 +19,10 @@ const generateToken = (userId) => {
 // @access  Public
 router.post('/register', async (req, res) => {
   try {
+    // Extract user input from request body
     const { firstName, lastName, username, email, password, confirmPassword } = req.body;
 
-    // Validation
+    // Validate required fields
     if (!firstName || !lastName || !username || !email || !password || !confirmPassword) {
       return res.status(400).json({ 
         success: false, 
@@ -27,6 +30,7 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    // Check password confirmation
     if (password !== confirmPassword) {
       return res.status(400).json({ 
         success: false, 
@@ -34,6 +38,7 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    // Enforce minimum password length
     if (password.length < 6) {
       return res.status(400).json({ 
         success: false, 
@@ -41,7 +46,7 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Check if user already exists
+    // Check if email or username already exists
     const existingUser = await User.findOne({
       $or: [{ email }, { username }]
     });
@@ -61,7 +66,7 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    // Create new user
+    // Create new user instance
     const user = new User({
       firstName,
       lastName,
@@ -70,11 +75,13 @@ router.post('/register', async (req, res) => {
       password
     });
 
+    // Save user to database
     await user.save();
 
-    // Generate token
+    // Generate authentication token
     const token = generateToken(user._id);
 
+    // Send success response
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
@@ -89,8 +96,10 @@ router.post('/register', async (req, res) => {
     });
 
   } catch (error) {
+    // Log registration error
     console.error('Registration error:', error);
     
+    // Handle validation errors
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(val => val.message);
       return res.status(400).json({ 
@@ -99,6 +108,7 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    // Handle server errors
     res.status(500).json({ 
       success: false, 
       message: 'Server error during registration' 
@@ -111,9 +121,10 @@ router.post('/register', async (req, res) => {
 // @access  Public
 router.post('/login', async (req, res) => {
   try {
+    // Extract login credentials
     const { email, password } = req.body;
 
-    // Validation
+    // Validate input fields
     if (!email || !password) {
       return res.status(400).json({ 
         success: false, 
@@ -121,7 +132,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Check if user exists
+    // Find user by email
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ 
@@ -130,7 +141,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Check password
+    // Compare provided password with stored hash
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(401).json({ 
@@ -139,9 +150,10 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Generate token
+    // Generate authentication token
     const token = generateToken(user._id);
 
+    // Send login success response
     res.json({
       success: true,
       message: 'Login successful',
@@ -156,6 +168,7 @@ router.post('/login', async (req, res) => {
     });
 
   } catch (error) {
+    // Log login error
     console.error('Login error:', error);
     res.status(500).json({ 
       success: false, 
@@ -165,12 +178,14 @@ router.post('/login', async (req, res) => {
 });
 
 // @route   GET /api/auth/me
-// @desc    Get current user
+// @desc    Get current authenticated user
 // @access  Private
 router.get('/me', async (req, res) => {
   try {
+    // Extract token from Authorization header
     const token = req.header('Authorization')?.replace('Bearer ', '');
     
+    // Validate token existence
     if (!token) {
       return res.status(401).json({ 
         success: false, 
@@ -178,9 +193,11 @@ router.get('/me', async (req, res) => {
       });
     }
 
+    // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.userId).select('-password');
 
+    // Handle invalid token or missing user
     if (!user) {
       return res.status(401).json({ 
         success: false, 
@@ -188,6 +205,7 @@ router.get('/me', async (req, res) => {
       });
     }
 
+    // Return authenticated user data
     res.json({
       success: true,
       user: {
@@ -200,6 +218,7 @@ router.get('/me', async (req, res) => {
     });
 
   } catch (error) {
+    // Handle token verification errors
     console.error('Get user error:', error);
     res.status(401).json({ 
       success: false, 
@@ -208,4 +227,5 @@ router.get('/me', async (req, res) => {
   }
 });
 
+// Export authentication routes
 module.exports = router;
