@@ -1,156 +1,120 @@
-console.log('DEBUG: Starting...'); const express = require('express');
+console.log('DEBUG: Starting...');
+const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
-console.log('DEBUG: Before logger'); const logger = require('./utils/logger'); console.log('DEBUG: After logger');
+console.log('DEBUG: Before logger');
+const logger = require('./utils/logger');
+console.log('DEBUG: After logger');
 
 // Import routes
-console.log('DEBUG: Before auth routes'); const authRoutes = require('./routes/auth'); console.log('DEBUG: After auth routes');
+console.log('DEBUG: Before auth routes');
+const authRoutes = require('./routes/auth');
+console.log('DEBUG: After auth routes');
 const recipeRoutes = require('./routes/recipes');
 
 // Load environment variables
-if (process.env.NODE_ENV !== 'production') { dotenv.config(); }
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
+// **FIX CORS - Tanpa app.options('*')**
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
-  credentials: true
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      'https://uts-popl-tudung-saji.vercel.app',
+      'http://localhost:3000',
+      'http://127.0.0.1:3000'
+    ];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json());
 
-// Request logging middleware
+// Request logging
 app.use((req, res, next) => {
   logger.info('Incoming Request', {
     method: req.method,
     url: req.originalUrl,
-    headers: req.headers,
     body: req.method !== 'GET' ? req.body : undefined
   });
   next();
-});
-
-console.log('DEBUG: Before MongoDB connection'); console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI); // MongoDB Connection
-console.log("DEBUG: Attempting MongoDB connection..."); mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/tudungsaji", { serverSelectionTimeoutMS: 5000 })
-.then(() => {
-  logger.info('Database Connected', {
-    database: 'MongoDB',
-    uri: process.env.MONGODB_URI ? 'MongoDB Atlas' : 'Local MongoDB'
-  });
-})
-.catch((err) => {
-  logger.logError(err, {
-    context: 'MongoDB Connection',
-    uri: process.env.MONGODB_URI ? 'MongoDB Atlas' : 'Local MongoDB'
-  });
-  process.exit(1);
 });
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/recipes', recipeRoutes);
 
-// Health check endpoints
+// Health checks
 app.get('/', (req, res) => {
-  logger.info('Health Check', {
-    endpoint: '/',
-    status: 'healthy',
-    timestamp: new Date().toISOString()
-  });
   res.json({
     message: 'Tudungsaji API Server is running!',
     status: 'healthy',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    timestamp: new Date().toISOString()
   });
 });
 
-app.get('/api/health', (req, res) => {
-  logger.info('API Health Check', {
-    endpoint: '/api/health',
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-  });
-
+app.get('/api/health', async (req, res) => {
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   res.json({
     status: 'healthy',
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
-});
-
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
-
-// 404 handler for undefined routes
-app.use((req, res) => {
-  logger.warn('Route Not Found', {
-    method: req.method,
-    url: req.originalUrl,
-    ip: req.ip
-  });
-  
-  res.status(404).json({
-    success: false,
-    message: 'Route not found'
-  });
-});
-
-// Global error handling middleware (must be last)
-app.use((err, req, res, next) => {
-  logger.logError(err, {
-    method: req.method,
-    url: req.originalUrl,
-    userId: req.user?.id
-  });
-
-  res.status(err.status || 500).json({
-    success: false,
-    message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message
-  });
-});
-
-// Graceful shutdown handling
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  mongoose.connection.close();
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  mongoose.connection.close();
-  process.exit(0);
-});
-
-// Uncaught exception handling
-process.on('uncaughtException', (error) => {
-  logger.logError(error, { context: 'Uncaught Exception' });
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection', {
-    reason: reason,
-    promise: promise
-  });
-  process.exit(1);
-});
-
-// Start server
-const server = app.listen(PORT, () => {
-  logger.info('Server Started', {
-    port: PORT,
-    environment: process.env.NODE_ENV || 'development',
+    database: dbStatus,
     timestamp: new Date().toISOString()
+  });
+});
+
+// MongoDB Connection (NON-BLOCKING)
+const connectDB = async () => {
+  console.log('DEBUG: Before MongoDB connection');
+  console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
+  
+  if (!process.env.MONGODB_URI) {
+    console.log('No MONGODB_URI - skipping DB connection');
+    return;
+  }
+  
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,  // 10 detik lokal
+      socketTimeoutMS: 20000,
+      bufferCommands: false,
+      family: 4
+    });
+    logger.info('MongoDB Connected');
+  } catch (err) {
+    console.error('MongoDB failed:', err.message);
+    // Server tetep jalan
+  }
+};
+
+// Start server DULU
+const server = app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  connectDB();
+});
+
+// 404
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: 'Route not found' });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ 
+    success: false, 
+    message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message 
   });
 });
 
