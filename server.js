@@ -9,7 +9,7 @@ const authRoutes = require('./routes/auth');
 const recipeRoutes = require('./routes/recipes');
 
 // Load environment variables
-dotenv.config();
+if (process.env.NODE_ENV !== 'production') { dotenv.config(); }
 
 const app = express();
 const PORT = process.env.PORT || 5000;
