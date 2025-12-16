@@ -5,7 +5,7 @@ const dotenv = require('dotenv');
 console.log('DEBUG: Before logger'); const logger = require('./utils/logger'); console.log('DEBUG: After logger');
 
 // Import routes
-const authRoutes = require('./routes/auth');
+console.log('DEBUG: Before auth routes'); const authRoutes = require('./routes/auth'); console.log('DEBUG: After auth routes');
 const recipeRoutes = require('./routes/recipes');
 
 // Load environment variables
