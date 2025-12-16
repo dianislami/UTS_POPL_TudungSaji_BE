@@ -2,7 +2,7 @@ console.log('DEBUG: Starting...'); const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const logger = require('./utils/logger');
+console.log('DEBUG: Before logger'); const logger = require('./utils/logger'); console.log('DEBUG: After logger');
 
 // Import routes
 const authRoutes = require('./routes/auth');
