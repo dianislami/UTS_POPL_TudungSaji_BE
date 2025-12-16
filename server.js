@@ -33,7 +33,7 @@ app.use((req, res, next) => {
 });
 
 console.log('DEBUG: Before MongoDB connection'); console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI); // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/tudungsaji')
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/tudungsaji').catch((err) => { console.log('DEBUG: MongoDB connection error:', err.message); process.exit(1); })
 .then(() => {
   logger.info('Database Connected', {
     database: 'MongoDB',
