@@ -1,17 +1,10 @@
-console.log('DEBUG: Starting...');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
-console.log('DEBUG: Before logger');
+const path = require('path');
+const fs = require('fs');
 const logger = require('./utils/logger');
-console.log('DEBUG: After logger');
-
-// Import routes
-console.log('DEBUG: Before auth routes');
-const authRoutes = require('./routes/auth');
-console.log('DEBUG: After auth routes');
-const recipeRoutes = require('./routes/recipes');
 
 // Load environment variables
 if (process.env.NODE_ENV !== 'production') {
@@ -22,108 +15,70 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const isProd = process.env.NODE_ENV === 'production';
 
-// CORS: ketat di production, bebas di development
-app.use(
-  cors({
-    origin: isProd
-      ? 'https://uts-popl-tudung-saji.vercel.app' // deploy
-      : true, // lokal: allow semua origin biar ga ribet
+// --- Middleware Configuration ---
+app.use(cors({
+    origin: isProd ? 'https://uts-popl-tudung-saji.vercel.app' : true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-  })
-);
+}));
 
 app.use(express.json());
 
-// Request logging
+// --- Static Folder Setup ---
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
+}
+app.use('/uploads', express.static(uploadDir));
+
+// --- Request Logging ---
 app.use((req, res, next) => {
   logger.info('Incoming Request', {
     method: req.method,
-    url: req.originalUrl,
-    body: req.method !== 'GET' ? req.body : undefined,
+    url: req.originalUrl
   });
   next();
 });
 
-// Routes
+// --- Routes Configuration ---
+const authRoutes = require('./routes/auth');
+const recipeRoutes = require('./routes/recipes');
+const profileRoutes = require('./routes/profile');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/recipes', recipeRoutes);
+app.use('/api/profile', profileRoutes);
 
-// Health checks
+// --- Health Check ---
 app.get('/', (req, res) => {
-  res.json({
-    message: 'Tudungsaji API Server is running!',
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-  });
+    res.json({ status: 'Server Running', timestamp: new Date() });
 });
 
-app.get('/api/health', (req, res) => {
-  const dbStatus =
-    mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  res.json({
-    status: 'healthy',
-    database: dbStatus,
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-  });
-});
-
-// MongoDB Connection (NON-BLOCKING)
+// --- Database Connection ---
 const connectDB = async () => {
-  console.log('DEBUG: Before MongoDB connection');
-  console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
-
   if (!process.env.MONGODB_URI) {
-    console.log('No MONGODB_URI - skipping DB connection');
+    console.error('Error: MONGODB_URI is not defined in environment variables.');
     return;
   }
 
   try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: isProd ? 5000 : 10000,
-      socketTimeoutMS: isProd ? 10000 : 20000,
-      bufferCommands: false,
-      family: 4,
-    });
-
-    logger.info('MongoDB Connected', {
-      service: 'tudungsaji-backend',
-      environment: process.env.NODE_ENV || 'development',
-    });
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('MongoDB Connected Successfully');
   } catch (err) {
-    console.error('MongoDB failed:', err.message);
-    // server tetap jalan tanpa DB
+    console.error('MongoDB Connection Failed:', err.message);
   }
 };
 
-// Start server dulu
+// --- Server Initialization ---
 const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   connectDB();
 });
 
-// 404
+// --- Error Handling ---
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
-});
-
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(err);
-  logger.logError(err, {
-    method: req.method,
-    url: req.originalUrl,
-  });
-  res.status(err.status || 500).json({
-    success: false,
-    message:
-      process.env.NODE_ENV === 'production'
-        ? 'Internal Server Error'
-        : err.message,
-  });
 });
 
 module.exports = { app, server };
