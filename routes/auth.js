@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const logger = require('../utils/logger');
 
-// Initialize Express router
+// Inisialisasi Express router
 const router = express.Router();
 
 // Generate JWT Token
